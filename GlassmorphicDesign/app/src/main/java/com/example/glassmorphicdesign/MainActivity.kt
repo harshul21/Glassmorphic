@@ -1,6 +1,12 @@
 package com.example.glassmorphicdesign
 
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.os.Build
 import android.os.Bundle
+import android.renderscript.Allocation
+import android.renderscript.RenderScript
+import android.renderscript.ScriptIntrinsicBlur
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -26,6 +32,9 @@ import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -47,6 +56,21 @@ class MainActivity : ComponentActivity() {
                     Box(
                         modifier = Modifier.fillMaxSize()
                     ){
+
+                        val bitmap = BitmapFactory
+                            .decodeResource(LocalContext.current.resources, R.drawable.sample)
+
+                        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
+                            LegacyBlurImage(bitmap, 25f)
+                        } else {
+                            BlurImage(
+                                bitmap,
+                                Modifier
+                                    .fillMaxSize()
+                                    .blur(radiusX = 15.dp, radiusY = 15.dp)
+                            )
+                        }
+
                         Image(
                             painter = painterResource(id = R.drawable.sample),
                             contentDescription = "Image",
@@ -98,4 +122,37 @@ fun GlassmorphicBox() {
             }
         }
     }
+}
+
+@Composable
+fun BlurImage(
+    bitmap: Bitmap,
+    modifier: Modifier = Modifier.fillMaxSize(),
+) {
+    Image(
+        bitmap = bitmap.asImageBitmap(),
+        contentDescription = null,
+        contentScale = ContentScale.Crop,
+        modifier = modifier
+    )
+}
+
+@Composable
+private fun LegacyBlurImage(
+    bitmap: Bitmap,
+    blurRadio: Float,
+    modifier: Modifier = Modifier.fillMaxSize()
+) {
+
+    val renderScript = RenderScript.create(LocalContext.current)
+    val bitmapAlloc = Allocation.createFromBitmap(renderScript, bitmap)
+    ScriptIntrinsicBlur.create(renderScript, bitmapAlloc.element).apply {
+        setRadius(blurRadio)
+        setInput(bitmapAlloc)
+        forEach(bitmapAlloc)
+    }
+    bitmapAlloc.copyTo(bitmap)
+    renderScript.destroy()
+
+    BlurImage(bitmap, modifier)
 }
